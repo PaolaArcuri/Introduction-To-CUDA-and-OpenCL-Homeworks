@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<app-config>
+	<app>aa</app>
+	<data_type> </data_type>
+	<data_size> 
+		<x>100</x>
+		<y>100</y>
+	</data_size>
+	
+	<thread-per-blocks-number> 
+								<x>4</x>
+								<y>8</y>
+								<z>16</z>
+								
+	</thread-per-blocks-number>
+</app-config>
