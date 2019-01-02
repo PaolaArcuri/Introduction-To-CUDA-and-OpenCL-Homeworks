@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <app-config>
-	<app>aa</app>
-	<data_type> </data_type>
+	<app>2</app> <!-- 1 for vector Addition, 2 for matrix multiplication and 3 for dot product  -->
 	<data_size> 
-		<x>100</x>
-		<y>100</y>
+	<A>
+		<x>5</x>
+		<y>4</y>
+	</A>
+	<B>
+		<x>4</x>
+		<y>3</y>
+	</B>
 	</data_size>
 	
-	<thread-per-blocks-number> 
+	<threads-per-block> 
 								<x>4</x>
 								<y>8</y>
 								<z>16</z>
 								
-	</thread-per-blocks-number>
+	</threads-per-block>
 </app-config>
