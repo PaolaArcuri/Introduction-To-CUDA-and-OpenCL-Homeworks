@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <app-config>
-	<app>2</app> <!-- 1 for vector Addition, 2 for matrix multiplication and 3 for dot product  -->
+	<app>3</app> <!-- 1 for vector Addition, 2 for matrix multiplication and 3 for dot product  -->
 	<data_size> 
 	<A>
-		<x>5</x>
-		<y>4</y>
+		<x>1200</x>
+		<y>1</y>
 	</A>
 	<B>
-		<x>4</x>
-		<y>3</y>
+		<x>1200</x>
+		<y>1</y>
 	</B>
 	</data_size>
 	
 	<threads-per-block> 
-								<x>4</x>
-								<y>8</y>
-								<z>16</z>
+								<x>16</x>
+								<y>1</y>
+								<z>1</z>
 								
 	</threads-per-block>
 </app-config>

@@ -23,8 +23,9 @@ using namespace std;
 #include <helper_functions.h>
 #include <helper_cuda.h>
 
-extern "C" void vectorAdd(const float *A, const float *B, float *C, int numElements);
-extern "C" void matrixMult(const float *d_A, const float *d_B, float *d_C, int N, int M, int K);
+extern "C" void vectorAdd(const float *A, const float *B, float *C, int numElements, dim3 threadsPerBlock);
+extern "C" void matrixMult(const float *d_A, const float *d_B, float *d_C, int N, int M, int K, dim3 threadsPerBlock) ;
+extern "C" void dotProduct(const float *d_A, const float *d_B, float *d_C, int N, dim3 threadsPerBlock);
 void cpu_matrix_mult(const float *h_A, const float *h_B, float *h_result, int m, int n, int k);
 void cpu_vec_add(const float *h_A, const float *h_B, float *h_result, int N);
 bool checkSizeInput (const AppConfig appConfig, int & nElements_C );
@@ -35,6 +36,9 @@ int main(int argc, char **argv)
 {
   
     assert (argc >1);
+
+     //-----------------------------------------------------------//
+     //load confing
     struct AppConfig appConfig;
 
     try
@@ -50,7 +54,10 @@ int main(int argc, char **argv)
     }
 
     printAppConfig(appConfig);
+    //-----------------------------------------------------------//
 
+    //-----------------------------------------------------------//
+    //Allocating host memory
     float *h_A, *h_B, *h_C, *h_result;
 
 
@@ -91,6 +98,8 @@ int main(int argc, char **argv)
 
     checkCudaErrors(cudaMallocHost((void **) &h_result, size_C));
 
+     //-----------------------------------------------------------//
+
 
     for(int i = 0; i < nElements_A; i++) {
         h_A[i] = rand() / (float)RAND_MAX;
@@ -112,6 +121,7 @@ int main(int argc, char **argv)
 
 
 
+     //-----------------------------------------------------------//
      printf("Allocating GPU memory...\n");  
 
     float *d_A, *d_B, *d_C;
@@ -123,38 +133,41 @@ int main(int argc, char **argv)
     cudaMemcpy(d_A, h_A, size_A, cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, h_B, size_B, cudaMemcpyHostToDevice);
     
+     //-----------------------------------------------------------//
+
+    dim3 threadsPerBlock (appConfig.threads_per_block_X, appConfig.threads_per_block_Y, appConfig.threads_per_block_Z);
 
     //start timer
     cudaEventRecord(gpu_start, 0);
 
-
+     //-----------------------------------------------------------//
     if (appConfig.app == APP_TYPE::VECTOR_ADD)
     {
-        vectorAdd(d_A, d_B, d_C, nElements_A);
+        vectorAdd(d_A, d_B, d_C, nElements_A, threadsPerBlock);
 
-        cout<<"sommiamo "<<endl;
+        cout<<"vector add "<<endl;
 
         cpu_vec_add(h_A,h_B, h_result,nElements_C);
     }
 
     else if (appConfig.app == APP_TYPE::MATRIX_MUL)
     {
-        matrixMult(d_A, d_B, d_C, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
+        matrixMult(d_A, d_B, d_C, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y, threadsPerBlock);
 
-        cout<<"moltiplichiamo "<<endl;
+        cout<<"matrix Multiplication "<<endl;
 
         cpu_matrix_mult(h_A,h_B, h_result, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
     }
 
     else if (appConfig.app == APP_TYPE::DOT_PRODUCT)
     {
-        matrixMult(d_A, d_B, d_C, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
+       dotProduct(d_A, d_B, d_C, nElements_A, threadsPerBlock);
 
         cout<<"dot product "<<endl;
 
-        cpu_matrix_mult(h_A,h_B, h_result, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
+        cpu_dot_product(h_A,h_B, h_result,nElements_A);
     }
-
+     //-----------------------------------------------------------//
 
     //stop timer
     cudaEventRecord(gpu_stop, 0);
@@ -168,22 +181,20 @@ int main(int argc, char **argv)
     printf("Copy output data from the CUDA device to the host memory\n");
     checkCudaErrors(cudaMemcpy(h_C, d_C, size_C, cudaMemcpyDeviceToHost));
 
-    // for(int i = 0; i< ; i++)
-    // {
-    //     cout<< h_A[i]<< "    " <<h_B[i] << " "<<h_C[i]<< " h result " << h_result[i] <<endl;
-    // }
 
+     //-----------------------------------------------------------//
      // Verify that the result is correct
     for (int i = 0; i < nElements_C; ++i)
     {
-        cout<< h_C[i]<< " h result " << h_result[i] <<endl;
-        if (fabs(h_result[i] - h_C[i]) > 1e-5)
+        printf ("%0.5f %0.5f \n", h_C[i], h_result[i]);
+        // cout<<" i = "<<i <<"   " << h_C[i]<< " h result " << h_result[i] << " fabs(h_result[i] - h_C[i])  " << fabs(h_result[i] - h_C[i]) <<endl;
+        if (fabs(h_result[i] - h_C[i]) > 1e-6)
         {
             fprintf(stderr, "Result verification failed at element %d!\n", i);
             exit(EXIT_FAILURE);
         }
     }
-
+    //-----------------------------------------------------------//
 
     printf("Test PASSED\n");
 
@@ -224,7 +235,6 @@ void cpu_matrix_mult(const float *h_A, const float *h_B, float *h_result, int m,
             }
             h_result[i * k + j] = tmp;
 
-            cout<<h_result [i * k + j ]<<endl;
         }
     }
 
@@ -239,10 +249,13 @@ void cpu_vec_add(const float *h_A, const float *h_B, float *h_result, int N) {
 
 void cpu_dot_product (const float *h_A, const float *h_B, float *h_result, int N)
 {
-    h_result[0]=0.0;
+    h_result[0]=0.0f;
     for (int i=0;i<N;++i) {
         h_result[0]+=h_A[i]*h_B[i];
     }
+
+    printf("%0.6f\n", h_result[0]);
+    cout<<h_result[0]<<endl;
 }
 
 
