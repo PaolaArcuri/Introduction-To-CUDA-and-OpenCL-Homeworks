@@ -14,10 +14,10 @@
   * Computes the vector addition of A and B into C. The 3 vectors have the same
   * number of elements numElements.
   */
-__global__ void  vectorAddKernel(const float *A, const float *B, float *C, int numElements, int type)
+__global__ void  vectorAddKernel(const float *A, const float *B, float *C, int numElements)
   {
       int i;
-      if (type == 1)
+      if (blockDim.y == 1)
       {
           i = blockIdx.x*blockDim.x+threadIdx.x;
       }
@@ -39,7 +39,7 @@ __global__ void  vectorAddKernel(const float *A, const float *B, float *C, int n
 
 extern "C" void vectorAdd(const float *d_A, const float *d_B, float *d_C, int numElements)
 {
-    vectorAddKernel<<<16, 16>>>(d_A, d_B, d_C, numElements, 2);  
+    vectorAddKernel<<<16, 16>>>(d_A, d_B, d_C, numElements);  
     getLastCudaError("inverseCNDKernel() execution failed.\n");
 }
 
@@ -93,5 +93,47 @@ extern "C" void matrixMult(const float *d_A, const float *d_B, float *d_C, int M
     matrixMultKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C, M, N, K);  
     getLastCudaError("inverseCNDKernel() execution failed.\n");
 }
+
+
+// __global__ void dotProductKernel( const float *a,const float *b, float *c, const int N) {
+//     __shared__ int temp[N];
+//     temp[threadIdx.x] = a[threadIdx.x] * b[threadIdx.x];
+//     __syncthreads();
+//     if( 0 == threadIdx.x ) {
+//         int sum = 0;
+//         for( int i = 0; i < N; i++ )
+//             sum += temp[i];
+//         *c = sum;
+//     }
+// }
+
+// The kernel - DOT PRODUCT
+__global__ void dotProductKernel(const float *a,const float *b, float *c) 
+{
+    extern __shared__ float temp[];
+
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    temp[threadIdx.x] = a[index] * b[index];
+    //Synch threads
+    __syncthreads();
+    if (0 == threadIdx.x) {
+        float sum = 0.00;
+        int i;
+        for (i=0; i<blockDim.x; i++)
+            sum += temp[i];
+        atomicAdd(c, sum);        
+    } 
+}
+
+
+
+extern "C" void dotProduct(const float *d_A, const float *d_B, float *d_C, int N)
+{
+    dotProductKernel<<<BLOCK_SIZE, N/BLOCK_SIZE + 1,  N*sizeof(float)>>>(d_A, d_B, d_C);  
+    getLastCudaError("inverseCNDKernel() execution failed.\n");
+}
+
+
+
 
 #endif

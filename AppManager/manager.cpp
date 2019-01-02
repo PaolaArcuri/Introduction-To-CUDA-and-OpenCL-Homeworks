@@ -28,6 +28,7 @@ extern "C" void matrixMult(const float *d_A, const float *d_B, float *d_C, int N
 void cpu_matrix_mult(const float *h_A, const float *h_B, float *h_result, int m, int n, int k);
 void cpu_vec_add(const float *h_A, const float *h_B, float *h_result, int N);
 bool checkSizeInput (const AppConfig appConfig, int & nElements_C );
+void cpu_dot_product (const float *h_A, const float *h_B, float *h_result, int N);
 
 
 int main(int argc, char **argv)
@@ -75,6 +76,14 @@ int main(int argc, char **argv)
     cout<<"num C: "<<nElements_C<<endl;
 
 
+
+    // timing variables
+	float gpu_elapsed_time = 0.0;
+	cudaEvent_t gpu_start, gpu_stop;
+	cudaEventCreate(&gpu_start);
+	cudaEventCreate(&gpu_stop);
+
+
     printf("Allocating CPU memory...\n");
     checkCudaErrors(cudaMallocHost((void **) &h_A, size_A));
     checkCudaErrors(cudaMallocHost((void **) &h_B, size_B));
@@ -91,15 +100,15 @@ int main(int argc, char **argv)
         h_B[i] = rand() / (float)RAND_MAX;        
     }
 
-    for(int i = 0; i < nElements_A; i++) {
-       cout<< h_A[i]<<" ";
-    }
+    // for(int i = 0; i < nElements_A; i++) {
+    //    cout<< h_A[i]<<" ";
+    // }
 
-    cout<<endl;
-    for(int i = 0; i < nElements_B; i++) {
-       cout<< h_B[i] <<" ";       
-    }
-    cout<<endl;
+    // cout<<endl;
+    // for(int i = 0; i < nElements_B; i++) {
+    //    cout<< h_B[i] <<" ";       
+    // }
+    // cout<<endl;
 
 
 
@@ -113,8 +122,12 @@ int main(int argc, char **argv)
     // copy matrix A and B from host to device memory
     cudaMemcpy(d_A, h_A, size_A, cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, h_B, size_B, cudaMemcpyHostToDevice);
-    // cudaMemcpy(d_C, h_B, size, cudaMemcpyHostToDevice);
     
+
+    //start timer
+    cudaEventRecord(gpu_start, 0);
+
+
     if (appConfig.app == APP_TYPE::VECTOR_ADD)
     {
         vectorAdd(d_A, d_B, d_C, nElements_A);
@@ -133,6 +146,24 @@ int main(int argc, char **argv)
         cpu_matrix_mult(h_A,h_B, h_result, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
     }
 
+    else if (appConfig.app == APP_TYPE::DOT_PRODUCT)
+    {
+        matrixMult(d_A, d_B, d_C, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
+
+        cout<<"dot product "<<endl;
+
+        cpu_matrix_mult(h_A,h_B, h_result, appConfig.dim_A_X, appConfig.dim_A_Y, appConfig.dim_B_Y);
+    }
+
+
+    //stop timer
+    cudaEventRecord(gpu_stop, 0);
+	cudaEventSynchronize(gpu_stop);
+	cudaEventElapsedTime(&gpu_elapsed_time, gpu_start, gpu_stop);
+
+	checkCudaErrors(cudaEventDestroy(gpu_start));
+	checkCudaErrors(cudaEventDestroy(gpu_stop));
+
 
     printf("Copy output data from the CUDA device to the host memory\n");
     checkCudaErrors(cudaMemcpy(h_C, d_C, size_C, cudaMemcpyDeviceToHost));
@@ -142,10 +173,10 @@ int main(int argc, char **argv)
     //     cout<< h_A[i]<< "    " <<h_B[i] << " "<<h_C[i]<< " h result " << h_result[i] <<endl;
     // }
 
-     // Verify that the result vector is correct
+     // Verify that the result is correct
     for (int i = 0; i < nElements_C; ++i)
     {
-        // cout<< h_C[i]<< " h result " << h_result[i] <<endl;
+        cout<< h_C[i]<< " h result " << h_result[i] <<endl;
         if (fabs(h_result[i] - h_C[i]) > 1e-5)
         {
             fprintf(stderr, "Result verification failed at element %d!\n", i);
@@ -155,6 +186,8 @@ int main(int argc, char **argv)
 
 
     printf("Test PASSED\n");
+
+    printf("Execution Time: %fms\n", gpu_elapsed_time);
 
 
 
@@ -204,6 +237,16 @@ void cpu_vec_add(const float *h_A, const float *h_B, float *h_result, int N) {
     }
 }
 
+void cpu_dot_product (const float *h_A, const float *h_B, float *h_result, int N)
+{
+    h_result[0]=0.0;
+    for (int i=0;i<N;++i) {
+        h_result[0]+=h_A[i]*h_B[i];
+    }
+}
+
+
+
 bool checkSizeInput (const AppConfig appConfig, int & nElements_C )
 {
     if (appConfig.app == APP_TYPE::VECTOR_ADD)
@@ -217,9 +260,11 @@ bool checkSizeInput (const AppConfig appConfig, int & nElements_C )
         return (appConfig.dim_A_Y == appConfig.dim_B_X);
     }
 
-    if (appConfig.app == APP_TYPE::DOT_PRODUCT) //??
+    if (appConfig.app == APP_TYPE::DOT_PRODUCT) 
     { 
-        nElements_C = appConfig.dim_A_X * appConfig.dim_B_Y;
-        return (appConfig.dim_A_Y == appConfig.dim_B_X);
+        nElements_C = 1;
+        return ((appConfig.dim_A_X == appConfig.dim_B_X) && appConfig.dim_A_Y == 1 && appConfig.dim_B_Y == 1);
     }
 }
+
+
