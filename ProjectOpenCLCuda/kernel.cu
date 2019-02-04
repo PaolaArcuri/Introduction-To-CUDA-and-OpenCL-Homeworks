@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <helper_cuda.h>
 
-// #include "common.h"
+#include "common.h"
 
 
 /**
